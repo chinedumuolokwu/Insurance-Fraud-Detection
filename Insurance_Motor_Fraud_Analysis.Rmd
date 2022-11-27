@@ -1,0 +1,295 @@
+---
+title: "Interpretation of Data EDA Assignment"
+author: "Chinedu Ebele-Muolokwu - K00277637"
+date: "4/14/2022"
+output:
+  bookdown::word_document2:
+                fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      results = 'hide',
+                      out.width = "100%",
+                      out.height = "500px"
+                     )
+```
+
+```{r}
+library(tidyverse)
+library(skimr)
+library(knitr)
+library(bookdown)
+
+#To Access the SKewness Function
+library(timeDate)
+```
+
+## Problem Statement
+I have been commissioned as an independent consultant to explore motor fraud cases for an insurance company based on a given dataset. I have been asked to provide insight more insights to the company on motor fraud cases. 
+I plan to do that using Exploratory Data Analysis (EDA) methods via different tools and produce a well structured report which would help the company understand and discover hidden patterns in the data that will help with making business decisions in the future.
+
+
+## Solution Statement
+I plan to achieve the aforementioned task using the following processes;
+
+* To better understand the data and gain more insights, use a variety of robust exploratory visualisations.
+* Discover and map out links and patterns between the dataset's variables.
+* Engineered new features from the variables in order to gain a better knowledge of the data.
+* Draw conclusions and offer tangible ideas based on the information I've gathered.
+
+
+## Exploratory Analysis
+The dataset contains 7 attributes and 1000 instances.There are 6 categorical variables and 1 numerical variables. After using the skimr package to skim the dataset. I was able to find that only the passenger 1 and passenger 2 have missing values of 648 and 890 respectively. This is okay as it is normal for there to be missing values in this column.
+
+```{r}
+insurance_data <- read_csv("00_data/assignment_data.csv")
+view(insurance_data)
+
+sapply(insurance_data,class)
+head(insurance_data)
+summary(insurance_data)
+skim(insurance_data)
+```
+
+### Data Cleaning
+
+Using the head function, I was clearly able to see that there was untidy data in the address column and this prompted me to check the entire dataset. Using regex, I was able to extract the columns in the dataset that was untidy and work on them. I also found that only the passenger1 and passenger2 categorical columns tidying issues. I checked for dupicated rows in the table.
+
+```{r}
+insurance_data_copy <- insurance_data
+insurance_data_copy
+
+duplicated(insurance_data_copy)
+
+#CHECK IF THE DATA HAS UNTIDY VALUES USING REGEX
+insurance_data_copy[grep("[^[:alnum:][:blank:]]", insurance_data_copy$driver), ]
+insurance_data_copy[grep("[^[:alnum:][:blank:]]", insurance_data_copy$address), ]
+insurance_data_copy[grep("[^[:alnum:][:blank:]]", insurance_data_copy$passenger1), ]
+insurance_data_copy[grep("[^[:alnum:][:blank:]]", insurance_data_copy$passenger2), ]
+insurance_data_copy[grep("[^[:alnum:][:blank:]]", insurance_data_copy$repaircost), ]
+insurance_data_copy[grep("[^[:alnum:][:blank:]]", insurance_data_copy$fraudFlag), ]
+
+#CLEANING PROCESS
+#Make a vector from each of the untidy columns
+address_col <- insurance_data_copy[["address"]]
+driver_col <- insurance_data_copy[["driver"]]
+repaircost_col <- insurance_data_copy[["repaircost"]]
+fraudFlag_col <- insurance_data_copy[["fraudFlag"]]
+
+# I created a vector variable to replace all the dirty data I got from extracting the regex
+    cleaned_address <- str_replace_all(address_col, c("CO\\$" = "COR", "BAR%OW" = "BARROW", "SL%NEY" = "SLANEY", "BLAC#WATER" = "BLACKWATER", "BLACK%ATER" = "BLACKWATER", "L#DGE" = "LODGE", "BOYN\\$" = "BOYNE", "DOD!£R" = "DODDER", "BLAC\\&\\*ATER" = "BLACKWATER", "BLACKWA\\^%R" = "BLACKWATER", "BARR\\$\\(" = "BARROW", "S\\+\\_ERN" = "SEVERN", "T\\{\\~MES" = "THAMES", "DODD!!" = "DODDER", "TH\\^\\)ES" = "THAMES", "L\\=\\$FEY" = "LIFFEY", "SLA!!!" = "SLANEY", "BA!!OW" = "BARROW", "SE\\*\\(\\&N" = "SEVERN", "SLA\"!Y" = "SLANEY", "L%FFEY" = "LIFFEY", "SHAN\\*ON" = "SHANNON", "LI\\%\\\"\\?Y" = "LIFFEY", "C\\+\\_AC" = "CAMAC", "B&:NE" = "BOYNE", "SL::EY" = "SLANEY", "BAR&OW" = "BARROW", "COR/IB" = "CORRIB", "DOD/ER" = "DODDER", "DOD\\!\\£R" = "DODDER"))
+
+    cleaned_driver <- str_replace_all(driver_col, c("OCONN!LL" = "OCONNELL", "H!GGINS" = "HIGGINS", "SHE!HAN" = "SHEEHAN", "HI\\?GINS" = "HIGGINS", "S\\*AN" = "SEAN", "M%RAN" = "MORAN", "P£TRICK" = "PATRICK", "OD<NOGHUE" = "ODONOGHUE"))
+    
+    cleaned_repaircost <- str_replace_all(repaircost_col, c("approx 5!!" = "approx 500", "approx \\$\\*0" = "approx 500", "approx 1!" = "approx 1k", "approx 2~" = "approx 2k", "approx 5!0" = "approx 500"))
+    
+    cleaned_fraudFlag <- str_replace_all(fraudFlag_col, c("FAL&E" = "FALSE", "T\\^UE" = "TRUE"))
+     
+       insurance_data_copy[["address"]] <- cleaned_address
+       insurance_data_copy[["driver"]] <- cleaned_driver
+       insurance_data_copy[["repaircost"]] <- cleaned_repaircost
+       insurance_data_copy[["fraudFlag"]] <- cleaned_fraudFlag
+view(insurance_data_copy)   
+```
+### Feature Engineering
+
+Feature Engineering procedure in which we leverage domain knowledge of the data to build additional relevant features (new columns, transform variables, and so on) that improve the learning algorithm's predictive capacity and improve the performance of machine learning models.
+I created two new variables namely;
+
+1) __numerical_repaircost__ : Converting the *repaircost* variable to numerical variables. Changed the approximate character values to their respective numerical values. Also chose 4000 to replace the "above 3k" value. 
+
+2) __total_passengers__ : Total passengers recorded in a vehicle during the report. So if there were 2 passengers in the car, the value is 2. If there was only one, the value is 1. If none, the value is zero.
+
+```{r}
+#create a new column called total_passengers
+insurance_engineered_data<- insurance_data_copy%>% 
+    mutate(total_passengers = case_when(!(is.na(passenger1)) & is.na(passenger2) ~ 1,
+                                        is.na(passenger1) & !(is.na(passenger2)) ~ 1,
+                                        !(is.na(passenger1)) & !(is.na(passenger2)) ~ 2,
+                                        TRUE ~ 0),
+           numerical_repaircost = case_when(repaircost == 'approx 500' ~ 500,
+                                            repaircost == 'approx 1k' ~ 1000, 
+                                            repaircost == 'approx 2k' ~ 2000,
+                                            repaircost == 'above 3k'~ 4000,
+                                            TRUE ~ 3000)) %>% 
+    view()
+
+skim(insurance_engineered_data)
+```
+
+### Exploratory Summary and Visualisations
+
+```{r results='markup'}
+skim(insurance_engineered_data)
+#knitr::include_graphics("00_data/Data_Summary.jpg")
+```
+
+900 instances from the dataset had a fraud flag value of FALSE. 10% of the total insurance applications which amounts to 100 had a where flagged down to be true.The average age of applicants in the dataset is `r mean(insurance_engineered_data$age)` with a min and max value of `r min(insurance_engineered_data$age)` and `r max(insurance_engineered_data$age)` respectively.
+
+```{r , fig.cap="plotting example", fig.height = 2, fig.width = 5}
+insurance_engineered_data %>%
+    
+    # ggplot
+    ggplot(aes(age))+
+    geom_histogram(binwidth = 10,col=I("black")) +
+    
+    # formatting
+    labs(title = "Fig 1:Histogram Showing the Age Distribution", x = "Age (Years)", y = "Frequency",
+         subtitle = "") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+
+insurance_engineered_data %>%
+    
+    # ggplot
+    ggplot(aes(total_passengers))+
+    geom_histogram(binwidth = 1,col=I("black")) +
+    
+    # formatting
+    labs(title = "Fig 2:Histogram Showing the Total Passengers Distribution", x = "Total Passengers", y = "Frequency",
+         subtitle = "") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+
+insurance_engineered_data %>%
+    
+    # ggplot
+   ggplot(aes(numerical_repaircost))+
+    geom_histogram(binwidth = 1000,col=I("black")) +
+    
+    # formatting
+    labs(title = "Fig 3:Histogram Showing the Repair Cost Dist", x = "Repair Cost (€)", y = "Frequency",subtitle = "") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+```
+
+The distribution of numerical qualities can be seen in the figures above. All of the attributes are skewed in the postive direction or rightly skewed. The skewness values of numerical *repaircost* and *total_passengers* are 1.16 and 1.23, respectively, which are over the threshold of 0.8, indicating that they are significantly skewed. The age property, on the other hand, has a skewness score of of 0.701, which is less than 0.8, indicating that it is only moderately skewed. The graphs also reveal that the majority of insurance claimants are in their 30s and are between the ages of 20 and 40. It's also worth noting that around 648 claims, or about 64.8 percent of all claims, involved no passengers in the car.
+I also calculated the correlation between the numerical coefficents and discovered that the attributes generally uncorrelated.
+
+```{r results='hide'}
+#Code for Skewness
+ insurance_engineered_data %>%
+    
+    select_if(is.numeric) %>% 
+    
+    # compute skewness of a univariate distribution
+    map_df(skewness)
+#Code for correlation
+cor(insurance_engineered_data$age, insurance_engineered_data$numerical_repaircost,  method = "pearson")
+cor(insurance_engineered_data$age, insurance_engineered_data$total_passengers,  method = "pearson")
+cor(insurance_engineered_data$total_passengers, insurance_engineered_data$numerical_repaircost,  method = "pearson")
+```
+
+```{r weekend-variation, echo = FALSE, fig.cap = "Bar Chart", fig.height = 2, fig.width = 5 }
+insurance_engineered_data %>%
+    
+    # ggplot
+    ggplot(aes(x=total_passengers, fill = fraudFlag))+
+    geom_bar(position = 'dodge') +
+    
+    # formatting
+    labs(title = "Fig 4:Bar Chart of Total Passengers", x = "Total Passengers", y = "Frequency",
+         subtitle = "Grouped by Fraud Flag") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+
+insurance_engineered_data %>%
+    
+    filter(fraudFlag=='TRUE') %>%
+    # ggplot
+    ggplot(aes(x=total_passengers, fill = repaircost))+
+    geom_bar(position = 'dodge') +
+    
+    # formatting
+    labs(title = "Fig 5:Bar Chart of Total Passengers", x = "Total Passengers", y = "Frequency",subtitle = "Grouped by Repair Cost") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+```
+
+The Bar Charts in the above Figures 4 and 5 and show the Total Passengers in a vehicle grouped by the Fraud Flag and Total Passengers in a vehicle grouped by the Repair Cost when the Fraud Flag Value is "TRUE" respectively. The vast majority of the claims, 641 in total, had no passengers and were flagged as "FALSE". This clearly shows that 98.9 percent of the claims of people with no passengers are viewed as not fradulent. This also means that only 7 of the 648 claims with no passenger were marked as "TRUE." clearly demonstrating that one or more passengers were present in 93 percent of all claims that were flagged as "TRUE". Another odd finding is that 60.9 percent of the 110 claims with two passengers were rated "TRUE" clearly indicating a red flag when there are 2 passengers in a claim.
+Furthermore, among those who had "TRUE" in the *fraudFlag* variable, 55 claims, or about 55 percent of the total claims, had a repair cost of around €500. This demonstrates that rejected claims are more likely to be for a lower sum. This corroborates the fact that none of the rejected claims exceeded €2,000.
+
+```{r fig.height = 2, fig.width = 5}
+insurance_engineeredData_fct <- insurance_engineered_data
+
+#Changing the total passengers attribute from numerical to factor to enable plotting on a boxplot.
+insurance_engineeredData_fct$total_passengers <- as.factor(insurance_engineeredData_fct$total_passengers)
+
+
+insurance_engineeredData_fct %>%
+    
+    # ggplot
+    ggplot(aes(x = total_passengers, y = numerical_repaircost))+
+    geom_boxplot(outlier.colour="red", outlier.shape=8,
+                 outlier.size=4) +
+    
+    # formatting
+    labs(title = "Fig 6:Box Plot of Total Passengers against Repair Cost", x = "Total Passengers", y = "Repair Cost (€)",
+         subtitle = "") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+
+insurance_engineeredData_fct %>%
+    
+    # ggplot
+    filter(fraudFlag=='TRUE') %>% 
+    ggplot(aes(x = total_passengers, y = numerical_repaircost))+
+    geom_boxplot(outlier.colour="red", outlier.shape=8,
+                 outlier.size=4) +
+    
+    # formatting
+    labs(title = "Fig 7:Box Plot of Total Passengers against Repair Cost", x = "Total Passengers", y = "Repair Cost (€)",
+         subtitle = "For Applicants Whose Fraud Flag is True") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+
+insurance_engineeredData_fct %>%
+    
+    # ggplot 
+    ggplot(aes(x = repaircost, y = age))+
+    geom_boxplot(outlier.colour="red", outlier.shape=8, outlier.size=4) +
+    
+    # formatting
+    labs(title = "Fig 8:Box Plot of Total Passengers against Repair Cost", x = "Repair Cost (€)", y = "Age(Years)",
+         subtitle = "For Applicants Whose Fraud Flag is True") +
+    scale_y_continuous(labels = scales::comma) +
+    theme_bw()
+```
+
+In Fig 6, It is worth noting that the median value is the same for all of them with claims with 0 and 1 passengers having almost identical plots. Claims with 2 passengers have a much smaller IQR due to the fact that majority of the claims are for smaller amounts like €500 and €1000. The red asterisks show the outliers in the data. This is more evident in Fig 7, which shows that for the claims flagged "TRUE", median value is the lowest obtainable value at €500. Fig 8 shows the Repair cost plotted against Age attribute. The plots for the different repair cost groups are nearly identical. It is worth noting that the median age of the above 3k repair group is the highest.
+
+```{r}
+#Grouped the data by either driver, passenger1 or passenger2 to see the see the repeat offenders
+insurance_engineered_data %>% 
+    select(driver,fraudFlag, total_passengers, numerical_repaircost) %>%
+    group_by(driver) %>% 
+    filter(fraudFlag == 'TRUE' & numerical_repaircost == 500 ) %>% 
+    summarise(true_ = n()) %>% 
+    arrange(-true_) %>% 
+    view()
+
+insurance_engineered_data %>% 
+    select(passenger2, numerical_repaircost, fraudFlag) %>%
+    filter(fraudFlag == 'TRUE') %>% 
+    group_by(passenger2, fraudFlag) %>% 
+    summarise(true_ = sum(numerical_repaircost)) %>% 
+    arrange(-true_) %>% 
+    view()
+```
+
+After grouping by drivers and passengers variables individually, summing up their repair cost when the Fraud Flag was flagged "TRUE", I discovered that there were some repeating groups of people with the same lastnames. I discovered that people with the last names __OREGAN, CAHILL, PHELAN, KELLEHER, LAWLOR, CURRAN and OROURKE__ had an extremely high chance of having a claim tagged "TRUE". This should indicate to the culprits' possible family ties. __DANIEL KELLEHER, RICHARD OROURKE, and HELEN OREGAN__ were also determined to be __repeat offenders__. On more than six occasions, each of these people featured as a driver or a passenger. The first two identities had 100 percent of the claims they were involved in classified as "TRUE," while the latter had a whopping 88 percent.
+
+## Conclusion
+After careful analysis of the data from different angles, I have been able to draw the following conclusions:
+
+* There is a high chance of a clam being fraudulent if there are 2 passengers in the car.
+* There is a very low chance of a claim being fraudulent of there is no passenger in the car.
+* If someone with the surnames OREGAN, CAHILL, PHELAN, KELLEHER, LAWLOR, CURRAN, or OROUKE is involved in a claim with more than one passenger, there's a good possibility it'll be tagged "TRUE.".
+* If a claim is more expensive that €2000, there is an extremely high probability that it is not a fraudulent claim.
+* There are way more non-fraudulent claims than fraudulent claims.
+
+
+
